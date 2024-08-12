@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">Example_MVVM_Content_Provider</string>
+    <string name="show_contact">Show Contact</string>
+    <string name="delete">Delete</string>
+    <string name="update">Update</string>
+    <string name="add_contact">Add Contact</string>
+    <string name="convert">Convert</string>
 </resources>
