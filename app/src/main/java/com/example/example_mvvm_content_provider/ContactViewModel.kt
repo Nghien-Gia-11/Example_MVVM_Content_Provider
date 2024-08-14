@@ -13,6 +13,9 @@ import androidx.annotation.RequiresApi
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @RequiresApi(Build.VERSION_CODES.O)
 class ContactViewModel(application: Application) : AndroidViewModel(application) {
@@ -29,60 +32,64 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
     @SuppressLint("Recycle")
     @RequiresApi(Build.VERSION_CODES.O)
     fun getContact() {
-        val contactList = mutableListOf<Contact>()
-        val cursor: Cursor? = contentResolver.query(
-            ContactsContract.Contacts.CONTENT_URI,
-            arrayOf(ContactsContract.Contacts._ID, ContactsContract.Contacts.DISPLAY_NAME),
-            null,
-            null,
-            null
-        )
-        cursor?.use {
-            if (it.count > 0) {
-                while (it.moveToNext()) {
-                    val id = it.getString(it.getColumnIndexOrThrow(ContactsContract.Contacts._ID))
-                    val name =
-                        it.getString(it.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME))
-                    val phonesCursor: Cursor? = contentResolver.query(
-                        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                        arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
-                        "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
-                        arrayOf(id),
-                        null
-                    )
-                    phonesCursor?.use { phoneCursor ->
-                        while (phoneCursor.moveToNext()) {
-                            val number = phoneCursor.getString(
-                                phoneCursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                            )
-                            contactList.add(Contact(id, name, number))
+        viewModelScope.launch(Dispatchers.IO) {
+            val contactList = mutableListOf<Contact>()
+            val cursor: Cursor? = contentResolver.query(
+                ContactsContract.Contacts.CONTENT_URI,
+                arrayOf(ContactsContract.Contacts._ID, ContactsContract.Contacts.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )
+            cursor?.use {
+                if (it.count > 0) {
+                    while (it.moveToNext()) {
+                        val id = it.getString(it.getColumnIndexOrThrow(ContactsContract.Contacts._ID))
+                        val name =
+                            it.getString(it.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME))
+                        val phonesCursor: Cursor? = contentResolver.query(
+                            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                            arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+                            "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+                            arrayOf(id),
+                            null
+                        )
+                        phonesCursor?.use { phoneCursor ->
+                            while (phoneCursor.moveToNext()) {
+                                val number = phoneCursor.getString(
+                                    phoneCursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                                )
+                                contactList.add(Contact(id, name, number))
+                            }
                         }
                     }
                 }
             }
+            _listContact.postValue(contactList)
         }
-        _listContact.value = contactList
     }
 
     fun convertContact() {
-        val contactList = _listContact.value
-        contactList?.forEach { item ->
-            when (item.number.length) {
-                11 -> {
-                    val number = item.number.substring(3)
-                    updateNumberPhone("03$number", item.id)
-                }
+        viewModelScope.launch(Dispatchers.IO) {
+            val contactList = _listContact.value
+            contactList?.forEach { item ->
+                when (item.number.length) {
+                    11 -> {
+                        val number = item.number.substring(3)
+                        updateNumberPhone("03$number", item.id)
+                    }
 
-                12 -> {
-                    val number = item.number.substring(4)
-                    updateNumberPhone("03$number", item.id)
-                }
-                else -> {
-                    item.number = item.number
+                    12 -> {
+                        val number = item.number.substring(4)
+                        updateNumberPhone("03$number", item.id)
+                    }
+                    else -> {
+                        item.number = item.number
+                    }
                 }
             }
+            _listContact.postValue(contactList!!)
         }
-        _listContact.postValue(contactList!!)
     }
 
     fun updateContact(newNumberPhone: String, newName: String, pos: Int) {
@@ -114,20 +121,20 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun deleteContact(listIdContact : MutableSet<String>) : Int {
-        val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
-        val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
-        val selection = "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} IN (${listIdContact.joinToString(separator = ",") { "?" }})"
         var deleteCount = 0
-        contentResolver.query(uri, projection, selection, listIdContact.toTypedArray(), null)?.use { cursor ->
-            while (cursor.moveToNext()) {
-                val contactId =
-                    cursor.getLong(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID))
-                // Delete the contact
-                val contactUri =
-                    ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId)
-                deleteCount = contentResolver.delete(contactUri, null, null)
+            val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+            val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+            val selection = "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} IN (${listIdContact.joinToString(separator = ",") { "?" }})"
+            contentResolver.query(uri, projection, selection, listIdContact.toTypedArray(), null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val contactId =
+                        cursor.getLong(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID))
+                    // Delete the contact
+                    val contactUri =
+                        ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId)
+                    deleteCount = contentResolver.delete(contactUri, null, null)
+                }
             }
-        }
         return deleteCount
     }
 
