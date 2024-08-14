@@ -29,7 +29,7 @@ class MainActivity : AppCompatActivity(), OnClick {
     private lateinit var diaLog: AlertDialog
     private var listContact = mutableListOf<Contact>()
     private lateinit var adapterContact: ContactAdapter
-    private var listIdContact = mutableListOf<String>()
+    private var listIdContact = mutableSetOf<String>()
 
     private val requestPermission =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { isGranted ->
@@ -73,7 +73,11 @@ class MainActivity : AppCompatActivity(), OnClick {
 
         binding.btnDelete.setOnClickListener {
             Log.e("TAG", "delete")
-            viewModel.deleteContact(listIdContact)
+            if (viewModel.deleteContact(listIdContact) != 0){
+                Toast.makeText(this, "Xóa thành công !!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Xóa thất bại !!", Toast.LENGTH_SHORT).show()
+            }
         }
 
     }
@@ -128,6 +132,7 @@ class MainActivity : AppCompatActivity(), OnClick {
                 } else {
                     Toast.makeText(this, "Thêm thất bại", Toast.LENGTH_SHORT).show()
                 }
+                diaLog.dismiss()
             } else {
                 Toast.makeText(this, "Số điện thoại không đúng", Toast.LENGTH_SHORT).show()
                 bindingDialog.edtNumberPhone.setText("")
@@ -162,7 +167,7 @@ class MainActivity : AppCompatActivity(), OnClick {
     }
 
     override fun onClick(pos: Int) {
-        listIdContact.add("$pos")
+        listIdContact.add(listContact[pos].id) // thêm id của contact được chọn vào listIdContact
     }
 
     @RequiresApi(Build.VERSION_CODES.O)

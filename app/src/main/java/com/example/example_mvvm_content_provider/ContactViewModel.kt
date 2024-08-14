@@ -2,11 +2,13 @@ package com.example.example_mvvm_content_provider
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.content.ContentUris
 import android.content.ContentValues
 import android.database.Cursor
 import android.os.Build
 import android.provider.ContactsContract
 import android.util.Log
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -30,7 +32,7 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
         val contactList = mutableListOf<Contact>()
         val cursor: Cursor? = contentResolver.query(
             ContactsContract.Contacts.CONTENT_URI,
-            null,
+            arrayOf(ContactsContract.Contacts._ID, ContactsContract.Contacts.DISPLAY_NAME),
             null,
             null,
             null
@@ -41,10 +43,9 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
                     val id = it.getString(it.getColumnIndexOrThrow(ContactsContract.Contacts._ID))
                     val name =
                         it.getString(it.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME))
-
                     val phonesCursor: Cursor? = contentResolver.query(
                         ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                        null,
+                        arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
                         "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
                         arrayOf(id),
                         null
@@ -112,29 +113,22 @@ class ContactViewModel(application: Application) : AndroidViewModel(application)
         contentResolver.update(ContactsContract.Data.CONTENT_URI, contentValue, condition, params)
     }
 
-    fun deleteContact(listIdContact: MutableList<String>) {
-        val cursor: Cursor? = contentResolver.query(
-            ContactsContract.Contacts.CONTENT_URI,
-            arrayOf(ContactsContract.Contacts._ID),
-            "${ContactsContract.Contacts._ID} = ?",
-            listIdContact.toTypedArray(),
-            null
-        )
-
-        cursor?.use {
-            if (cursor.moveToFirst()) {
-                val idContact =
-                    cursor.getLong(cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID))
-                Log.e("TAG", "Hello")
-                /*val contactUri = ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, idContact)
-                val deleteCount = contentResolver.delete(contactUri, null, null)
-                if (deleteCount > 0) {
-                    Log.e("ContactDeleted", "Contact deleted: $idContact")
-                } else {
-                    Log.e("ContactDeleted", "Failed to delete contact: $idContact")
-                }*/
+    fun deleteContact(listIdContact : MutableSet<String>) : Int {
+        val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+        val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+        val selection = "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} IN (${listIdContact.joinToString(separator = ",") { "?" }})"
+        var deleteCount = 0
+        contentResolver.query(uri, projection, selection, listIdContact.toTypedArray(), null)?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val contactId =
+                    cursor.getLong(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID))
+                // Delete the contact
+                val contactUri =
+                    ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, contactId)
+                deleteCount = contentResolver.delete(contactUri, null, null)
             }
         }
+        return deleteCount
     }
 
 
