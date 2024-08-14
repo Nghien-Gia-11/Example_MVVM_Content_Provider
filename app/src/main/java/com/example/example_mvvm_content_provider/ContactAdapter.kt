@@ -31,6 +31,9 @@ class ContactAdapter(private var listContact: MutableList<Contact>, private val 
             holder.binding.checkSelected.isChecked = !holder.binding.checkSelected.isChecked
             onClick.onClick(position)
         }
+        holder.binding.btnUpdate.setOnClickListener {
+            onClick.onClickUpdate(position)
+        }
     }
 
     @SuppressLint("NotifyDataSetChanged")

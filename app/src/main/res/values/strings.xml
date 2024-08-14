@@ -5,4 +5,7 @@
     <string name="update">Update</string>
     <string name="add_contact">Add Contact</string>
     <string name="convert">Convert</string>
+    <string name="cancel">Cancel</string>
+    <string name="name">Name</string>
+    <string name="numberPhone">Number Phone</string>
 </resources>

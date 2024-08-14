@@ -2,31 +2,34 @@ package com.example.example_mvvm_content_provider
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.provider.ContactsContract
+import android.util.Log
+import android.view.LayoutInflater
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.example.example_mvvm_content_provider.databinding.ActivityMainBinding
+import com.example.example_mvvm_content_provider.databinding.LayoutDialogAddContactBinding
 
 
 class MainActivity : AppCompatActivity(), OnClick {
 
     private lateinit var binding: ActivityMainBinding
-
+    private lateinit var bindingDialog: LayoutDialogAddContactBinding
     private val viewModel: ContactViewModel by viewModels()
 
-
+    private lateinit var diaLog: AlertDialog
     private var listContact = mutableListOf<Contact>()
     private lateinit var adapterContact: ContactAdapter
+    private var listIdContact = mutableListOf<String>()
 
     private val requestPermission =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { isGranted ->
@@ -53,7 +56,11 @@ class MainActivity : AppCompatActivity(), OnClick {
 
         viewModel.listContact.observe(this) {
             listContact = it
-            adapterContact.updateListContact(listContact)
+            adapterContact.updateListContact(it)
+        }
+
+        binding.btnShowContact.setOnClickListener {
+            viewModel.getContact()
         }
 
         binding.btnConvert.setOnClickListener {
@@ -61,41 +68,73 @@ class MainActivity : AppCompatActivity(), OnClick {
         }
 
         binding.btnAddContact.setOnClickListener {
-            addContact("abc", "01679812367")
+            createDiaLogAddContact(true, -1) // true : thêm contact
+        }
+
+        binding.btnDelete.setOnClickListener {
+            Log.e("TAG", "delete")
+            viewModel.deleteContact(listIdContact)
         }
 
     }
 
-    private fun addContact(name : String, number : String) {
-        val contentResolver = contentResolver
-        val rawContactUri = contentResolver.insert(ContactsContract.RawContacts.CONTENT_URI, ContentValues())
-        val rawContactId = rawContactUri?.lastPathSegment?.toLong() ?: return
-
-        val nameValues = ContentValues().apply {
-            put(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
-            put(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
-            put(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME, name)
+    @SuppressLint("SetTextI18n")
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun createDiaLogAddContact(isAddContact: Boolean, pos: Int) {
+        val build = AlertDialog.Builder(this)
+        bindingDialog = LayoutDialogAddContactBinding.inflate(LayoutInflater.from(this))
+        build.setView(bindingDialog.root)
+        bindingDialog.btnCancel.setOnClickListener {
+            diaLog.dismiss()
         }
-
-        contentResolver.insert(ContactsContract.Data.CONTENT_URI, nameValues)
-
-        /*val numberPhoneValues = ContentValues().apply {
-            put(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
-            put(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
-            put(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME, name)
+        if (isAddContact) {
+            bindingDialog.btnAdd.text = "Add Contact"
+            addContact()
+        } else {
+            bindingDialog.btnAdd.text = "Update"
+            updateContact(pos)
         }
-        contentResolver.insert(ContactsContract.Data.CONTENT_URI, numberPhoneValues)*/
-
-        val numberPhoneValues = ContentValues().apply {
-            put(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
-            put(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
-            put(ContactsContract.CommonDataKinds.Phone.NUMBER, number) // phoneNumber là số điện thoại bạn muốn thêm
-            put(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE) // loại số điện thoại
-        }
-        contentResolver.insert(ContactsContract.Data.CONTENT_URI, numberPhoneValues)
-
-
+        diaLog = build.create()
+        diaLog.show()
     }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun updateContact(pos: Int) {
+        bindingDialog.edtName.setText(listContact[pos].name)
+        bindingDialog.edtNumberPhone.setText(listContact[pos].number)
+
+        bindingDialog.btnAdd.setOnClickListener {
+            val newName = bindingDialog.edtName.text.toString()
+            val newNumberPhone = bindingDialog.edtNumberPhone.text.toString()
+            viewModel.updateContact(newNumberPhone, newName, pos)
+            diaLog.dismiss()
+            Toast.makeText(this, "Finish", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun addContact() {
+        var isCheck = true
+
+        bindingDialog.btnAdd.setOnClickListener {
+            val name = bindingDialog.edtName.text.toString()
+            val numberPhone = bindingDialog.edtNumberPhone.text.toString()
+            if (numberPhone.length < 10 || numberPhone.length > 12) {
+                isCheck = false
+            }
+            if (isCheck) {
+                if (viewModel.addContact(name, numberPhone) == 1) {
+                    Toast.makeText(this, "Thêm thành công", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Thêm thất bại", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this, "Số điện thoại không đúng", Toast.LENGTH_SHORT).show()
+                bindingDialog.edtNumberPhone.setText("")
+            }
+        }
+    }
+
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun checkPermission() {
@@ -123,6 +162,11 @@ class MainActivity : AppCompatActivity(), OnClick {
     }
 
     override fun onClick(pos: Int) {
-        Toast.makeText(this, listContact[pos].name, Toast.LENGTH_SHORT).show()
+        listIdContact.add("$pos")
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    override fun onClickUpdate(pos: Int) {
+        createDiaLogAddContact(false, pos) // false : update contact
     }
 }
